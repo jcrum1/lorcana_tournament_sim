@@ -18,13 +18,51 @@ class Match:
 
         if self.player2 == None:
             self.score[0] += 3
+
         else:
+            cutoff = 0.5
+
             if self.player1.skill is not None:
-                percent_diff = self.player1.percentile - self.player2.percentile
-                percent_diff = percent_diff / 2.0
-                cutoff = 0.5 + percent_diff
+                try:
+                    percent_diff = self.player1.percentile - self.player2.percentile
+                    skill_percent_diff = percent_diff / 2.0
+                except:
+                    print('what')
+        
+            if self.player1.deck is not None:
+                deck1_name = self.player1.deck.name
+                deck2_name = self.player2.deck.name
+                player1_wr = self.player1.deck.winrates[deck2_name]
+                player2_wr = self.player2.deck.winrates[deck1_name]
+
+                if self.player1.skill is not None:
+                    if percent_diff > 0.5:
+                        matchup_cutoff = player1_wr
+                    elif percent_diff < 0.5:
+                        matchup_cutoff = player2_wr
+                    else:
+                        matchup_cutoff = (player1_wr + (1 - player2_wr)) / 2.0
+
+                else:
+                    matchup_cutoff = (player1_wr + (1 - player2_wr)) / 2.0
+
+
+            if self.player1.deck is None:
+                if self.player1.skill is not None:
+                    # Case 1: No decks, but skill is used
+                    cutoff = cutoff + skill_percent_diff # Use luck (0.5 original cutoff) + skill differential
+
             else:
-                cutoff = 0.5
+                if self.player1.skill is None:
+                    # Case 2: Deck present, no skill used
+                    cutoff = matchup_cutoff # Entirely use matchups to determine this, since that already includes luck
+        
+                else:
+                    # Case 3: Decks and skill both present
+                    weight_factor = np.abs(percent_diff)
+                    cutoff = matchup_cutoff * (1 -  weight_factor) + skill_percent_diff * weight_factor
+
+
 
             if bo3:
                 num_games = 3
@@ -32,13 +70,26 @@ class Match:
                 num_games = 2
 
             for game in range(num_games):
-                if self.player1.deck == None and self.player2.deck == None:
-                        roll = np.random.random()
-                        if roll < cutoff:
-                            self.score[0] = self.score[0] + 1
-                        else:
-                            self.score[1] = self.score[1] + 1
+                # if self.player1.deck == None and self.player2.deck == None:
+                roll = np.random.random()
+                if roll < cutoff:
+                    self.score[0] = self.score[0] + 1
+                else:
+                    self.score[1] = self.score[1] + 1
         return self.score
+
+
+class Deck:
+
+    def __init__(self, row):
+        self.name = row.name
+        self.winrates = {}
+        for deck_idx, val in row.items():
+            self.winrates[deck_idx] = val
+
+    def update_winrates(self, deck, winrate):
+        self.winrates[deck] = winrate
+        return self
 
 
 class Player:
@@ -147,8 +198,67 @@ class Tournament:
         return self
             
         
+def bad_method_for_deck_matrix():
+    decks = [
+        'GP Tempo',
+        'RB Dime',
+        'AS Steelsong',
+        'BS Ramp',
+        'GS Aggro Discard',
+        'AR Mufasa',
+        'Am Am Hyperaggro',
+        'PS Jafar',
+        'RP Control',
+        'BP Blurple',
+        'Default'
+        ]
+    deck_matrix = pd.DataFrame(columns= decks, index=decks)
 
-        
+    default_winrates = [0.5] * len(decks)
+
+    deck_matrix['GP Tempo'] = [0.5, 0.75, 0.5, 0.55, 0.45, 0.66, 0.5, 0.55, 0.7, 0.5, 0.5] # 1  Artabax data
+    deck_matrix['RB Dime'] = [0.4, 0.5, 0.75, 0.8, 0.65, 0.5, 0.3, 0.85, 0.5, 0.3, 0.5] # 2     Jbaum data
+    deck_matrix['AS Steelsong'] = [0.5, 0.2, 0.5, 0.6, 0.75, 0.75, 0.6, 0.7, 0.6, 0.3, 0.5] # 3 Chuck data
+    deck_matrix['BS Ramp'] = [0.7, 0.3, 0.4, 0.5, 0.7, 0.4, 0.6, 0.7, 0.6, 0.5, 0.5] # 4        Jak data
+    deck_matrix['GS Aggro Discard'] = [0.55, 0.7, 0.4, 0.5, 0.5, 0.66, 0.75, 0.3, 0.75, 0.55, 0.5] # 5
+    deck_matrix['AR Mufasa'] = [0.6, 0.65, 0.6, 0.85, 0.65, 0.5, 0.5, 0.6, 0.66, 0.5, 0.5] # 6
+    deck_matrix['Am Am Hyperaggro'] = [0.4, 0.8, 0.3, 0.7, 0.3, 0.7, 0.5, 0.35, 0.7, 0.7, 0.5] # 7
+    deck_matrix['PS Jafar'] = [0.6, 0.4, 0.3, 0.4, 0.5, 0.4, 0.7, 0.5, 0.65, 0.3, 0.5] # 8
+    deck_matrix['RP Control'] = [0.5, 0.6, 0.55, 0.45, 0.35, 0.45, 0.3, 0.55, 0.5, 0.5, 0.5] # 9
+    deck_matrix['BP Blurple'] = [0.65, 0.6, 0.65, 0.6, 0.55, 0.5, 0.35, 0.65, 0.6, 0.5, 0.5] # 10
+    deck_matrix['Default'] = default_winrates
+
+    return deck_matrix.T
+
+
+def construct_deck_distribution(deck_matrix_dist):
+
+    deck_intervals = {}
+
+    start = 0.0
+    closed='both'
+    for deck in deck_matrix_dist.keys():
+        prop = deck_matrix_dist[deck]
+        end = start + prop
+        deck_intervals[deck] = pd.Interval(start, end, closed=closed)
+        start = end
+        closed='right'
+
+    assert np.abs(end - 1.0) < 1e-8
+    return deck_intervals
+
+
+def choose_deck(deck_intervals):
+
+    random_roll = np.random.random()
+    for deck, interval in deck_intervals.items():
+        if random_roll in interval:
+            return deck
+
+    return 'Default'
+
+
+
 
 
 if __name__ == '__main__':
@@ -157,8 +267,25 @@ if __name__ == '__main__':
     points_for_64 = []
     points_for_me = []
     points_for_16 = []
-
     num_players_tied_with_32 = []
+    in_top_cut = 0
+
+    deck_matrix = bad_method_for_deck_matrix()
+
+    deck_distribution = {
+        'GP Tempo' : 0.05,
+        'RB Dime' : 0.2,
+        'AS Steelsong': 0.2,
+        'BS Ramp' : 0.05,
+        'GS Aggro Discard' : 0.1,
+        'AR Mufasa' : 0.05,
+        'Am Am Hyperaggro' : 0.05,
+        'PS Jafar' : 0.05,
+        'RP Control' : 0.2,
+        'BP Blurple' : 0.05,
+        'Default' : 0.0
+    }
+    deck_intervals = construct_deck_distribution(deck_distribution)
     
     dist = 'Normal'
     if dist == 'Normal':
@@ -174,12 +301,15 @@ if __name__ == '__main__':
         my_scale = None
         my_skill = None
 
-    for mc in range(500):
+    for mc in range(50):
         num_players = 2047  #128, 256, 512
         players = []
-        me = Player(num_players, skill=my_skill, dist=dist, loc=my_loc, scale=my_scale)
+
+        my_deck = Deck(deck_matrix.loc['RP Control'])
+        me = Player(num_players, deck=my_deck, skill=my_skill, dist=dist, loc=my_loc, scale=my_scale)
 
         for play in range(num_players):
+
             if dist == 'Normal':
                 skill_level = np.random.normal(loc=my_loc, scale=my_scale)
             elif dist == 'Beta':
@@ -187,7 +317,14 @@ if __name__ == '__main__':
             else:
                 skill_level = None
                 dist = None
-            players.append(Player(play, skill=skill_level, dist=dist, loc=my_loc, scale=my_scale))
+
+            curr_deck = choose_deck(deck_intervals)
+            player_deck = Deck(deck_matrix.loc[curr_deck])
+
+
+            players.append(
+                Player(play, deck=player_deck, skill=skill_level, dist=dist, loc=my_loc, scale=my_scale)
+            )
         players.append(me)
 
         my_tournament = Tournament(players)
@@ -206,6 +343,9 @@ if __name__ == '__main__':
         points_for_64.append(points_64)
 
         points_for_me.append(me.points)
+        if me.points > points_64:
+            in_top_cut += 1
+
 
         tied_with_32 = my_tournament.rankings[my_tournament.rankings['Points'] > points_32 - 1]
         thirty_x = tied_with_32.loc[32:,]
@@ -216,18 +356,21 @@ if __name__ == '__main__':
         points_16 = player_16.points
         points_for_16.append(points_16)
 
-    plt.hist(points_for_16)
-    plt.title(f'{dist} Distribution -- Top 16')
-    plt.show()
-    my_tournament.rankings.to_csv(r'C:\\Users\jrobc\Documents\Tournament_Simulator\example_rankings.csv')
+    # plt.hist(points_for_16)
+    # plt.title(f'{dist} Distribution -- Top 16')
+    # plt.show()
+    # my_tournament.rankings.to_csv(r'C:\\Users\jrobc\Documents\Tournament_Simulator\example_rankings.csv')
 
-    plt.hist(points_for_32)
-    plt.title(f'{dist} Distribution -- Top 32')
-    plt.show()
+    # plt.hist(points_for_32)
+    # plt.title(f'{dist} Distribution -- Top 32')
+    # plt.show()
 
-    plt.hist(points_for_64)
-    plt.title(f'{dist} Distribution -- Top 64')
-    plt.show()
+    # plt.hist(points_for_64)
+    # plt.title(f'{dist} Distribution -- Top 64')
+    # plt.show()
+
+    top_cut_percent = (in_top_cut / 500) * 100
+    print(f'I made top cut {in_top_cut} times out of 500, so {top_cut_percent} % with {me.deck.name}')
 
     # plt.hist(points_for_me)
     # plt.title(f'{dist} Distribution for Me')
