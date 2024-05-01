@@ -222,10 +222,10 @@ def bad_method_for_deck_matrix():
     deck_matrix['BS Ramp'] = [0.7, 0.3, 0.4, 0.5, 0.7, 0.4, 0.6, 0.7, 0.6, 0.5, 0.5] # 4        Jak data
     deck_matrix['GS Aggro Discard'] = [0.55, 0.7, 0.4, 0.5, 0.5, 0.66, 0.75, 0.3, 0.75, 0.55, 0.5] # 5
     deck_matrix['AR Mufasa'] = [0.6, 0.65, 0.6, 0.85, 0.65, 0.5, 0.5, 0.6, 0.66, 0.5, 0.5] # 6
-    deck_matrix['Am Am Hyperaggro'] = [0.4, 0.8, 0.3, 0.7, 0.3, 0.7, 0.5, 0.35, 0.7, 0.7, 0.5] # 7
+    deck_matrix['Am Am Hyperaggro'] = [0.4, 0.8, 0.3, 0.7, 0.3, 0.7, 0.5, 0.35, 0.7, 0.7, 0.5] # 7 
     deck_matrix['PS Jafar'] = [0.6, 0.4, 0.3, 0.4, 0.5, 0.4, 0.7, 0.5, 0.65, 0.3, 0.5] # 8
     deck_matrix['RP Control'] = [0.5, 0.6, 0.55, 0.45, 0.35, 0.45, 0.3, 0.55, 0.5, 0.5, 0.5] # 9
-    deck_matrix['BP Blurple'] = [0.65, 0.6, 0.65, 0.6, 0.55, 0.5, 0.35, 0.65, 0.6, 0.5, 0.5] # 10
+    deck_matrix['BP Blurple'] = [0.65, 0.6, 0.45, 0.6, 0.55, 0.5, 0.35, 0.65, 0.6, 0.5, 0.5] # 10
     deck_matrix['Default'] = default_winrates
 
     return deck_matrix.T
@@ -301,11 +301,11 @@ if __name__ == '__main__':
         my_scale = None
         my_skill = None
 
-    for mc in range(50):
+    for mc in range(500):
         num_players = 2047  #128, 256, 512
         players = []
 
-        my_deck = Deck(deck_matrix.loc['RP Control'])
+        my_deck = Deck(deck_matrix.loc['BP Blurple'])
         me = Player(num_players, deck=my_deck, skill=my_skill, dist=dist, loc=my_loc, scale=my_scale)
 
         for play in range(num_players):
